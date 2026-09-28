@@ -10,6 +10,7 @@ extern const _memory_end: u64;
 extern const _stack: u64;
 
 const chunk = struct {
+    header: u64,
     mem: [4096]u8 align(4096) = undefined,
 };
 
@@ -24,15 +25,18 @@ pub fn kminit() bool {
     mn.println("MEMORY END: {}", .{&_memory_end});
     mn.println("STACK: {}", .{&_stack});
 
+    // calculate number of chunks
+    const chunk_num = (mem_map.RAM_END() - mem_map.RAM_START()) / (4096 + 8);
+
     const head_node: ?*linked_list = @ptrFromInt(mem_map.RAM_START());
 
     var curr: ?*linked_list = head_node;
     // this cast causes chunk to be NULL
     const chunks: [*]chunk = @ptrFromInt(mem_map.RAM_START());
 
-    for (1..mem_map.PAGE_NUM()) |i| {
+    for (1..chunk_num) |i| {
         if (curr) |ptr| {
-            if (i + 1 == mem_map.PAGE_NUM()) {
+            if (i + 1 == chunk_num) {
                 ptr.next_node = null;
             } else {
                 ptr.next_node = @ptrCast(&chunks[i + 1]);
@@ -43,6 +47,7 @@ pub fn kminit() bool {
         }
     }
 
+    mn.println("number of chunks: {}", .{chunk_num});
     mn.println("ram allocator initialized", .{});
     return true;
 }
