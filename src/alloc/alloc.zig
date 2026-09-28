@@ -18,6 +18,8 @@ const linked_list = struct {
     next_node: ?*linked_list,
 };
 
+var free_list: ?*linked_list = null;
+
 pub fn kminit() bool {
     mn.println("KERNEL END: {}", .{mem_map.RAM_START()});
     mn.println("KERNEL END: {}", .{&_bss_end});
@@ -28,9 +30,9 @@ pub fn kminit() bool {
     // calculate number of chunks
     const chunk_num = (mem_map.RAM_END() - mem_map.RAM_START()) / (4096 + 8);
 
-    const head_node: ?*linked_list = @ptrFromInt(mem_map.RAM_START());
+    free_list = @ptrFromInt(mem_map.RAM_START());
 
-    var curr: ?*linked_list = head_node;
+    var curr: ?*linked_list = free_list;
     // this cast causes chunk to be NULL
     const chunks: [*]chunk = @ptrFromInt(mem_map.RAM_START());
 
@@ -50,4 +52,21 @@ pub fn kminit() bool {
     mn.println("number of chunks: {}", .{chunk_num});
     mn.println("ram allocator initialized", .{});
     return true;
+}
+
+pub fn kalloc() !u64 {
+    // return from free list if possible
+    if (free_list) |free_chunk| {
+        const curr: ?*linked_list = free_chunk;
+        free_list = free_chunk.next_node;
+        return curr;
+    } else {
+        return null;
+    }
+}
+
+pub fn kfree(free_chunk: u64) void {
+    const new_free_chunk: ?*linked_list = @ptrFromInt(free_chunk);
+    new_free_chunk.next_node = free_list;
+    free_list = new_free_chunk;
 }
