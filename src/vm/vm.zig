@@ -27,17 +27,26 @@ const page_dir = struct {
     entries: *[512]page_entry,
 };
 
+// change these to use Zig's error set type
+pub fn kptable_init() void {
+    const ptable_addr: u64 = kptable_make();
+    // load into satp here
+    asm volatile ("csrw satp, a0"
+        :
+        : [arg1] "{a0}" (ptable_addr),
+    );
+    mn.println("virtual memory and page table initialized.", .{});
+}
+
 // creates the page table for the kernel
-pub fn kptable_make() bool {
+fn kptable_make() u64 {
     const page_table: *page_dir = @ptrCast(allocator.kalloc());
     const res: bool = ptable_store(page_table, mem_map.KERNBASE, mem_map.KERNBASE); // do i have to add more addresses? Since the kernel is more than a page in size?
+    _ = res;
     _ = ptable_store(page_table, mem_map.UART0, mem_map.UART0);
     _ = ptable_store(page_table, mem_map.VIRTIO0, mem_map.VIRTIO0);
 
-    if (res == false) {
-        return false;
-    }
-    return true;
+    return @intFromPtr(page_table);
 }
 
 // stores a virtual address in a page table

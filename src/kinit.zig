@@ -86,10 +86,9 @@ export fn trap(epc: u64, tval: u64, cause: u64, hart: u64, status: u64) align(4)
 export fn kinit() callconv(.c) void {
     uart.init();
     _ = alloc.kminit();
-    const res: bool = vm.kptable_make();
+    vm.kptable_init();
     println("Zig is running on barebones RISC-V (rv{})!", .{@bitSizeOf(usize)});
     const ret_val: u64 = kmain.kmain();
     // do something if the kernel fails...
     _ = ret_val;
-    _ = res;
 }
