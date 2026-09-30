@@ -1,7 +1,8 @@
 const std = @import("std");
 const uart = @import("uart/uart.zig");
 const kmain = @import("kmain.zig");
-const alloc = @import("alloc/alloc.zig");
+const alloc = @import("alloc/kernel_alloc.zig");
+const vm = @import("vm/vm.zig");
 
 // Here we set up a printf-like writer from the standard library by providing
 // a way to output via the UART.
@@ -85,8 +86,10 @@ export fn trap(epc: u64, tval: u64, cause: u64, hart: u64, status: u64) align(4)
 export fn kinit() callconv(.c) void {
     uart.init();
     _ = alloc.kminit();
+    const res: bool = vm.kptable_make();
     println("Zig is running on barebones RISC-V (rv{})!", .{@bitSizeOf(usize)});
     const ret_val: u64 = kmain.kmain();
     // do something if the kernel fails...
     _ = ret_val;
+    _ = res;
 }

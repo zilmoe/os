@@ -21,7 +21,6 @@ const linked_list = struct {
 var free_list: ?*linked_list = null;
 
 pub fn kminit() bool {
-    mn.println("KERNEL END: {}", .{mem_map.RAM_START()});
     mn.println("KERNEL END: {}", .{&_bss_end});
     mn.println("MEMORY END: {}", .{&_heap_start});
     mn.println("MEMORY END: {}", .{&_memory_end});
@@ -54,7 +53,7 @@ pub fn kminit() bool {
     return true;
 }
 
-pub fn kalloc() !u64 {
+pub fn kalloc() ?*linked_list {
     // return from free list if possible
     if (free_list) |free_chunk| {
         const curr: ?*linked_list = free_chunk;
