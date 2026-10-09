@@ -8,6 +8,8 @@ const allocator = @import("../alloc/kernel_alloc.zig");
 const mem_map = @import("./kernel_map.zig");
 const mn = @import("../kinit.zig");
 
+extern const _bss_end: u64;
+
 // might not be the best way to do this
 const page_entry = packed struct {
     reserved: u10,
@@ -35,18 +37,43 @@ pub fn kptable_init() void {
         :
         : [arg1] "{a0}" (ptable_addr),
     );
+    asm volatile ("sfence.vma");
     mn.println("virtual memory and page table initialized.", .{});
 }
 
 // creates the page table for the kernel
 fn kptable_make() u64 {
-    const page_table: *page_dir = @ptrCast(allocator.kalloc());
-    const res: bool = ptable_store(page_table, mem_map.KERNBASE, mem_map.KERNBASE); // do i have to add more addresses? Since the kernel is more than a page in size?
-    _ = res;
-    _ = ptable_store(page_table, mem_map.UART0, mem_map.UART0);
-    _ = ptable_store(page_table, mem_map.VIRTIO0, mem_map.VIRTIO0);
-
+    const page_table: ?*page_dir = @ptrCast(allocator.kalloc());
+    if (page_table) |chunk| {
+        const res: bool = ptable_store(chunk, mem_map.KERNBASE, mem_map.KERNBASE);
+        _ = res;
+        _ = ptable_addr_store(chunk, mem_map.UART0, mem_map.UART0, 4096);
+        _ = ptable_addr_store(chunk, mem_map.VIRTIO0, mem_map.VIRTIO0, 4096);
+        // 0x80050080 is the end of the kernel, hardcoded for now.
+        _ = ptable_addr_store(chunk, mem_map.KERNBASE, mem_map.KERNBASE, 0x80050080 - mem_map.KERNBASE);
+    }
     return @intFromPtr(page_table);
+}
+
+fn ptable_addr_store(p_table: *page_dir, v_addr: u64, p_addr: u64, size: u64) bool {
+    // check alignement
+    if (size % 4096 != 0) {
+        return false;
+    }
+    if (v_addr % 4096 != 0) {
+        return false;
+    }
+    if (p_addr % 4096 != 0) {
+        return false;
+    }
+    for (0..(size % 4096)) |i| {
+        const res: bool = ptable_store(p_table, v_addr, p_addr + (4096 * i));
+        if (res == false) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // stores a virtual address in a page table

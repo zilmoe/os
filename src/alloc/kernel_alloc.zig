@@ -22,7 +22,7 @@ var free_list: ?*linked_list = null;
 
 pub fn kminit() bool {
     mn.println("KERNEL END: {}", .{&_bss_end});
-    mn.println("MEMORY END: {}", .{&_heap_start});
+    mn.println("HEAP START: {}", .{&_heap_start});
     mn.println("MEMORY END: {}", .{&_memory_end});
     mn.println("STACK: {}", .{&_stack});
 
