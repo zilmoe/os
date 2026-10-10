@@ -11,34 +11,36 @@ const mn = @import("../kinit.zig");
 extern const _bss_end: u64;
 
 // might not be the best way to do this
-const page_entry = packed struct {
-    reserved: u10,
-    ppn: u44,
-    rsw: u2,
-    dirty: u1,
-    accessed: u1,
-    global: u1,
-    user: u1,
-    executable: u1,
-    writeable: u1,
-    readable: u1,
+const page_entry = packed struct(u64) {
     valid: u1,
+    readable: u1,
+    writeable: u1,
+    executable: u1,
+    user: u1,
+    global: u1,
+    accessed: u1,
+    dirty: u1,
+    rsw: u2,
+    ppn: u44,
+    reserved: u10,
 };
 
 const page_dir = struct {
-    entries: *[512]page_entry,
+    entries: [512]page_entry,
 };
 
 // change these to use Zig's error set type
 pub fn kptable_init() void {
     const ptable_addr: u64 = kptable_make();
     // load into satp here
-    asm volatile ("csrw satp, a0"
+    const satp_val: u64 = (8 << 60) | (ptable_addr >> 12);
+    asm volatile ("csrw satp, %[val]"
         :
-        : [arg1] "{a0}" (ptable_addr),
+        : [val] "r" (satp_val),
     );
-    asm volatile ("sfence.vma");
+    asm volatile ("sfence.vma" ::: .{ .memory = true });
     mn.println("virtual memory and page table initialized.", .{});
+    vm_print(@ptrFromInt(ptable_addr));
 }
 
 // creates the page table for the kernel
@@ -67,7 +69,7 @@ fn ptable_addr_store(p_table: *page_dir, v_addr: u64, p_addr: u64, size: u64) bo
         return false;
     }
     for (0..(size % 4096)) |i| {
-        const res: bool = ptable_store(p_table, v_addr, p_addr + (4096 * i));
+        const res: bool = ptable_store(p_table, v_addr + (4096 * i), p_addr + (4096 * i));
         if (res == false) {
             return false;
         }
@@ -83,7 +85,7 @@ fn ptable_store(p_table: *page_dir, v_addr: u64, p_addr: u64) bool {
     const l_one_offset = (v_addr >> 21) & 0x1FF;
     const l_two_offset = (v_addr >> 30) & 0x1FF;
 
-    var l_two_entry: page_entry = p_table.entries[l_two_offset];
+    const l_two_entry: *page_entry = &p_table.entries[l_two_offset];
     var l_one_table: ?*page_dir = null;
 
     // access the first table
@@ -128,4 +130,33 @@ fn ptable_store(p_table: *page_dir, v_addr: u64, p_addr: u64) bool {
     }
 
     return true;
+}
+
+fn vm_print(page_table: *page_dir) void {
+    mn.println("Table One ({x}):", .{@intFromPtr(page_table)});
+    var zeros: u32 = 0;
+    for (0..512) |i| {
+        const entry: page_entry = page_table.entries[i]; // maybe make page_entry nullable?
+        if (entry.valid == 1) {
+            mn.println("{} zero entries", .{zeros});
+            zeros = 0;
+            mn.println("Entry {}", .{i});
+            mn.println("reserved {}", .{entry.reserved});
+            mn.println("ppn {}", .{entry.ppn});
+            mn.println("rsw {}", .{entry.rsw});
+            mn.println("dirty {}", .{entry.dirty});
+            mn.println("accessed {}", .{entry.accessed});
+            mn.println("global {}", .{entry.global});
+            mn.println("user {}", .{entry.user});
+            mn.println("executable {}", .{entry.executable});
+            mn.println("writeable {}", .{entry.writeable});
+            mn.println("readable {}", .{entry.readable});
+            mn.println("valid {}", .{entry.valid});
+        } else {
+            zeros += 1;
+        }
+    }
+    if (zeros != 0) {
+        mn.println("{} zero entries", .{zeros});
+    }
 }
